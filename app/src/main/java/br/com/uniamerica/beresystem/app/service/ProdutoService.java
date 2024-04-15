@@ -1,8 +1,15 @@
 package br.com.uniamerica.beresystem.app.service;
 
+import br.com.uniamerica.beresystem.app.dto.ProdutoDTO;
+import br.com.uniamerica.beresystem.app.entity.Produto;
 import br.com.uniamerica.beresystem.app.repository.ProdutoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
 
 @Service
 public class ProdutoService {
@@ -12,4 +19,64 @@ public class ProdutoService {
     public ProdutoService(ProdutoRepository produtoRepository){
         this.produtoRepository = produtoRepository;
     }
+    @Transactional(readOnly = true)
+    public Optional<ProdutoDTO> findById(Long id){ return produtoRepository.findById(id).map(ProdutoDTO::new);}
+
+    @Transactional(readOnly = true)
+    public List<ProdutoDTO> findAll(){
+        List<Produto> produtos = produtoRepository.findAll();
+        return produtos.stream().map(ProdutoDTO::new).toList();
+    }
+
+    public void validarProduto(final Produto produto){
+        String nome = produto.getNomeProduto();
+
+        if (nome == null || nome.isEmpty()){
+            throw new IllegalArgumentException("Nome De Produto Não Preenchido");
+        }
+        if (!nome.matches("[a-zA-Z0-9 ]+")){
+            throw new IllegalArgumentException("Nome De Produto Invalido");
+        }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void cadastrar(Produto produto){
+        validarProduto(produto);
+        produtoRepository.save(produto);
+    }
+
+    @Transactional(rollbackFor = Exception.class, propagation = Propagation.REQUIRES_NEW)
+    public void atualizar(Long id, Produto produto) {
+        validarProduto(produto);
+        Optional<Produto> produtoExistenteOptional = produtoRepository.findById(id);
+
+        if (produtoExistenteOptional.isPresent()) {
+            Produto produtoExistente = produtoExistenteOptional.get();
+
+            if (produto.getNomeProduto() != null) {
+                produtoExistente.setNomeProduto(produto.getNomeProduto());
+            }
+
+            if (produto.getDescricao() != null) {
+                produtoExistente.setDescricao(produto.getDescricao());
+            }
+            produtoExistente.setAtivo(produto.isAtivo());
+            produtoRepository.save(produtoExistente);
+        } else {
+            throw new IllegalArgumentException("ID Inválido!");
+        }
+    }
+
+    @Transactional(rollbackFor = Exception.class, propagation = Propagation.REQUIRES_NEW)
+    public void desativar(Long id){
+        Optional<Produto> produtoExistenteOptional = produtoRepository.findById(id);
+
+        if (produtoExistenteOptional.isPresent()){
+            Produto produtoExistente = produtoExistenteOptional.get();
+            produtoExistente.setAtivo(false);
+        } else {
+            throw new IllegalArgumentException("ID Invalido");
+        }
+    }
+
 }
